@@ -135,7 +135,30 @@ class WebEngine:
             return self._list_relationships()
         if verb in ("eventi",):
             return self._list_events()
-        return "Comando non riconosciuto. Digita 'aiuto' per l'elenco completo."
+        # Interpretazione libera: quando l'input non corrisponde a nessun comando
+        # specifico, lo trattiamo come parte della narrazione e lasciamo che
+        # l'AI continui la storia in base al contesto.
+        return self._free_response(cmd)
+
+    def _free_response(self, user_input: str) -> str:
+        """Gestisce input libero (non comando) fornito dal giocatore.
+
+        Invia all'AI un prompt che descrive l'ambiente attuale e incorpora
+        l'input dell'utente, in modo da ottenere una continuazione
+        narrativa coerente. Aggiorna la storia e salva lo stato.
+        """
+        if not self.state:
+            return "Errore di stato."
+        # Prepara un prompt che include l'input del giocatore
+        prompt = (
+            f"Sei in {self.state.location}. L'utente dice: '{user_input}'. "
+            "Continua la narrazione in modo realistico e cupo, reagendo a ciò che ha detto l'utente e descrivendo cosa accade nei dintorni, inclusi eventuali vaganti o personaggi."  # noqa: E501
+        )
+        response = self.ai_helper.generate(prompt)
+        # Registra la risposta nella cronologia
+        self.state.narrative_history.append(response)
+        database.save_state(self.state.to_dict(), self.db_path)
+        return response
 
     def _help_text(self) -> str:
         return (

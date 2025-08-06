@@ -94,15 +94,19 @@ class AIHelper:
             return self._fallback_response(prompt)
 
     def _fallback_response(self, prompt: str) -> str:
-        """Fallback minimale per quando il modello non è disponibile.
+        """Genera una risposta generica ma un po' più varia quando il modello non è disponibile.
 
-        Viene restituita una frase generica basata sul contesto del prompt.
+        Questo fallback estrae qualche parola chiave dal prompt per rendere la
+        risposta meno monotona e fornisce una descrizione cupa tipica
+        dell'ambientazione post‑apocalittica.
         """
-        # Semplice generatore casuale per rendere la risposta meno ripetitiva
+        # Estrai le ultime tre parole significative dal prompt per personalizzare
+        words = [w.strip(".,!?;:") for w in prompt.split() if len(w) > 3]
+        keywords = " ".join(words[-3:]) if words else ""
         templates = [
-            "L'aria è densa e carica di tensione. Decidi come procedere.",
-            "Il silenzio è rotto solo da lontani lamenti. Cos'hai intenzione di fare?",
-            "Senti un fruscio tra i rovi; qualcosa si muove nell'ombra.",
-            "Il tempo scorre e ogni scelta è fondamentale per la tua sopravvivenza.",
+            f"Un brivido ti percorre la schiena mentre pensi a {keywords}. Un sussurro lontano interrompe il silenzio.",
+            f"L'atmosfera si fa pesante e il tuo respiro accelera. Intorno a te, l'eco di {keywords} si perde nel vento.",
+            f"Le ombre si allungano e tra i vaganti senti mormorii su {keywords}. Dovrai stare all'erta.",
+            f"Il terreno è viscido e ogni passo riecheggia. Ti concentri su {keywords}, ma qualcosa si muove dietro di te.",
         ]
         return random.choice(templates)
