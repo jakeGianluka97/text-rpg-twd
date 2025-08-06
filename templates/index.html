@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avventura Post‑Apocalittica</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Avventura Post‑Apocalittica DnD/TWD</h1>
+    </header>
+    <main>
+        <!-- Form per inserire il nome del giocatore -->
+        <section id="start-section">
+            <label for="player-name">Nome del personaggio:</label>
+            <input type="text" id="player-name" maxlength="30" />
+            <label for="region-select">Regione di partenza:</label>
+            <select id="region-select">
+                <option value="Italia">Italia</option>
+                <option value="Inghilterra">Inghilterra</option>
+                <option value="Francia">Francia</option>
+                <option value="Spagna">Spagna</option>
+                <option value="Germania">Germania</option>
+                <option value="USA">USA</option>
+            </select>
+            <label for="difficulty-select">Difficoltà:</label>
+            <select id="difficulty-select">
+                <option value="facile">Facile</option>
+                <option value="normale" selected>Normale</option>
+                <option value="difficile">Difficile</option>
+            </select>
+            <button id="start-btn">Inizia</button>
+        </section>
+        <!-- Area di gioco nascosta finché non si avvia una sessione -->
+        <section id="game-section" style="display: none;">
+            <div id="history" class="scrollable"></div>
+            <div id="command-bar">
+                <input type="text" id="command-input" placeholder="Digita un comando..." />
+                <button id="send-btn">Invia</button>
+            </div>
+        </section>
+    </main>
+    <footer>
+        <small>Gioco dimostrativo sviluppato con Flask</small>
+    </footer>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
