@@ -1,0 +1,122 @@
+// Prisma schema for the AI RPG backend
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Usiamo SQLite per l'ambiente di sviluppo in locale. In produzione sarà
+  // possibile impostare DATABASE_URL per collegarsi a PostgreSQL o un altro
+  // database supportato. Prisma utilizza automaticamente la URL definita
+  // nella variabile d'ambiente se presente.
+  provider = "sqlite"
+  // URL del database. Definire DATABASE_URL nel file .env; in
+  // sviluppo locale, si può impostare DATABASE_URL="file:./dev.db" per
+  // utilizzare un file SQLite nella root del progetto.
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id        Int        @id @default(autoincrement())
+  username  String     @unique
+  email     String     @unique
+  timezone  String
+  characters Character[]
+}
+
+model Character {
+  id              Int        @id @default(autoincrement())
+  player          Player     @relation(fields: [playerId], references: [id])
+  playerId        Int
+  name            String
+  description     String?
+  // In SQLite non sono supportati tipi Json o array di primitivi; usiamo
+  // Stringhe serializzate (ad esempio JSON) per memorizzare statistiche e lingue.
+  stats           String?
+  languages_known String?
+  traits          String?
+  progress        String?
+  created_at      DateTime   @default(now())
+  // Relations
+  events          Event[]
+  relationships   Relationship[]
+}
+
+model NPC {
+  id               Int        @id @default(autoincrement())
+  name             String
+  description      String?
+  affiliation      String?
+  languages        String?
+  emotional_state  String?
+  trust_level      Float      @default(0)
+  reputation       Float      @default(0)
+  potential_betrayal Float    @default(0)
+  created_at       DateTime   @default(now())
+  relationships    Relationship[]
+}
+
+model Location {
+  id               Int        @id @default(autoincrement())
+  name             String
+  description      String?
+  coordinates      String?
+  environment_state String?
+  last_updated     DateTime   @default(now())
+  events           Event[]
+  resources        Resource[]
+}
+
+model Resource {
+  id            Int      @id @default(autoincrement())
+  location      Location @relation(fields: [locationId], references: [id])
+  locationId    Int
+  type          String
+  description   String?
+  quantity      Int      @default(1)
+  discovered_by String?
+  collected_by  String?
+  created_at    DateTime @default(now())
+}
+
+model Event {
+  id           Int      @id @default(autoincrement())
+  description  String
+  type         String
+  timestamp    DateTime @default(now())
+  location     Location? @relation(fields: [locationId], references: [id])
+  locationId   Int?
+  // Id degli attori coinvolti, separati da virgole (personaggi e PNG)
+  actors       String?
+  // Conseguenze codificate come stringa JSON serializzata
+  consequences String?
+  embedding    Bytes?   // store embedding vector
+  character    Character? @relation(fields: [characterId], references: [id])
+  characterId  Int?
+}
+
+model Relationship {
+  id             Int       @id @default(autoincrement())
+  character      Character @relation(fields: [characterId], references: [id])
+  characterId    Int
+  npc            NPC       @relation(fields: [npcId], references: [id])
+  npcId          Int
+  trust_level    Float     @default(0)
+  reputation     Float     @default(0)
+  emotional_state String?
+  last_interaction DateTime @default(now())
+}
+
+model Language {
+  id      Int     @id @default(autoincrement())
+  name    String
+  dialect String?
+  region  String?
+}
+
+model WorldState {
+  id          Int      @id @default(autoincrement())
+  time_of_day String?
+  weather     String?
+  global_events String?
+}
