@@ -1,0 +1,38 @@
+{
+  "name": "twd-rpg",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.17.0",
+    "@tanstack/react-query": "^5.51.0",
+    "lodash": "^4.17.21",
+    "maplibre-gl": "^4.5.2",
+    "next": "^14.2.5",
+    "node-cron": "^3.0.3",
+    "openai": "^4.56.0",
+    "pg": "^8.12.0",
+    "prisma": "^5.17.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5",
+    "tailwindcss": "^3.4.10",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.41",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}

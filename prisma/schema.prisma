@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String
+  locale     String   @default("it-IT")
+  createdAt  DateTime @default(now())
+  characters Character[]
+}
+
+model Character {
+  id            String   @id @default(cuid())
+  playerId      String
+  name          String
+  concept       String
+  backstory     String
+  originLocale  String
+  traits        Json
+  stats         Json
+  proficiency   Json
+  createdAt     DateTime @default(now())
+  player        Player   @relation(fields: [playerId], references: [id])
+  languages     CharacterLanguage[]
+}
+
+model Language {
+  code   String @id
+  name   String
+  type   String // language | dialect
+  region String?
+  characters CharacterLanguage[]
+  npcs NPCLanguage[]
+}
+
+model CharacterLanguage {
+  characterId  String
+  languageCode String
+  level        Int
+  character    Character @relation(fields: [characterId], references: [id])
+  language     Language  @relation(fields: [languageCode], references: [code])
+  @@id([characterId, languageCode])
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  name        String
+  kind        String
+  lat         Float
+  lon         Float
+  region      String
+  tags        String[]
+  dangerLevel Int      @default(0)
+  lastState   Json
+  updatedAt   DateTime @updatedAt
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  kind        String
+  summary     String
+  payload     Json
+  ts          DateTime @default(now())
+  locationId  String?
+  gmAsserted  Boolean  @default(true)
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  sender         String   // 'player' | 'gm'
+  text           String
+  locale         String
+  toolCalls      Json
+  createdAt      DateTime @default(now())
+}
+
+model MemoryChunk {
+  id       String   @id @default(cuid())
+  scope    String   // 'world'|'location'|'character'|'npc'
+  refId    String?
+  content  String
+  ts       DateTime @default(now())
+}
+
+model Relationship {
+  id          String   @id @default(cuid())
+  subjectType String   // 'npc'|'character'
+  subjectId   String
+  objectType  String
+  objectId    String
+  trust       Float    @default(0)
+  fear        Float    @default(0)
+  reputation  Float    @default(0)
+  flags       Json
+  updatedAt   DateTime @default(now())
+}
+
+model NPC {
+  id        String   @id @default(cuid())
+  name      String
+  profile   Json
+  alive     Boolean  @default(true)
+  lastSeenAt DateTime?
+  languages NPCLanguage[]
+}
+
+model NPCLanguage {
+  npcId        String
+  languageCode String
+  level        Int
+  npc          NPC      @relation(fields: [npcId], references: [id])
+  language     Language @relation(fields: [languageCode], references: [code])
+  @@id([npcId, languageCode])
+}
+
+model Faction {
+  id     String @id @default(cuid())
+  name   String @unique
+  rules  Json
+}
+
+model Waypoint {
+  id        String @id @default(cuid())
+  fromId    String
+  toId      String
+  travelMin Int
+  risk      Int
+}
