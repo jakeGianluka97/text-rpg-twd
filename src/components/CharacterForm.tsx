@@ -6,11 +6,11 @@ export default function CharacterForm({ onReady }: { onReady: (id: string)=>void
   const [motherTongue, setMotherTongue] = useState('it')
   const [known, setKnown] = useState<string>('nap')
   const create = async () => {
-const res = await fetch('/api/character', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ name, motherTongue, known: [known] })
-})
+  const res = await fetch('/api/characters', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, motherTongue, known: [known] })
+  })
 
 let data: any = null
 if (res.ok) {

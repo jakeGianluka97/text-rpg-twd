@@ -32,6 +32,7 @@ model Character {
 
   // PRIMA aveva @relation(fields:[id], references:[characterId]) — va tolto
   sceneState SceneState?
+  Event      Event[]
 }
 
 model Language {
@@ -76,13 +77,18 @@ model Event {
   payload Json
   ts      DateTime @default(now())
 
-  // Relazione corretta verso Location
+  // NEW: collega l'evento al PG
+  characterId String?
+  character   Character? @relation(fields: [characterId], references: [id])
+
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id])
 
   gmAsserted Boolean @default(true)
   phase      String?
   impact     String?
+
+  @@index([characterId, ts(sort: Desc)])
 }
 
 model Message {
