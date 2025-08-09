@@ -28,60 +28,67 @@ export async function handlePlayerMessage({ characterId, text }: { characterId: 
     return { reply: basicLinguisticsEffect(reply, char.languages.map(l => l.languageCode)) }
   }
 
-const sysToolPrompt = `Sei un Game Master AI per The Walking Dead.
-Usa le AZIONI fornite (una per volta) e rispondi sempre SOLO in JSON valido.
-REGOLE DI PROGRESSIONE:
-- Ogni turno devi introdurre almeno UN elemento nuovo (evento DB, dettaglio scena, domanda specifica) rispetto al turno precedente.
+  const sysToolPrompt = `Sei un Game Master AI per The Walking Dead.
+Usa le AZIONI (simili a tools) definite qui sotto. ${TOOL_CATALOG}
+
+REGOLE DI PROGRESSIONE (obbligatorie):
+- Ogni turno devi introdurre almeno UN elemento nuovo rispetto al turno precedente (evento DB, dettaglio scena o domanda specifica).
 - Le opzioni finali ('- ...') devono cambiare e riferirsi alla situazione aggiornata.
-- Usa get_scene_state/set_scene_state per avanzare di fase (es. 'intro' -> 'parley' -> 'interpreter' -> 'road' -> 'camp').
-- Quando pronto, chiudi con {"action":"final","parameters":{"reply":"...con 2–4 opzioni"}}. Niente markdown fuori dal JSON.`
+- Usa get_scene_state/set_scene_state per avanzare di fase (es.: 'intro' -> 'parley' -> 'interpreter' -> 'road' -> 'camp').
+- Rispondi sempre **SOLO** in JSON valido e **una azione per volta**.
+- Quando pronto, chiudi con {"action":"final","parameters":{"reply":"..."}}.
+- Non ripetere i JSON o le stesse frasi: variazione obbligatoria.`
 
   let history: any[] = [
     { role: 'system', content: SYSTEM },
     { role: 'system', content: sysToolPrompt },
-    { role: 'user', content: `PG: ${char.name} — input: ${text}` }
+    { role: 'user', content: `PG: ${char.name} — input: ${text}` },
+    { role: 'system', content: `Suggerimento: prima azione "get_scene_state" con characterId="${char.id}" poi "world_context".` }
   ]
 
   let finalReply: string | null = null
+  let lastReply: string = ''
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const res = await openai.chat.completions.create({
       model: MODEL,
       messages: history,
       temperature: step === 0 ? 0.4 : 0.6,
+      presence_penalty: 0.6,
+      frequency_penalty: 0.5
     })
 
     let raw = res.choices?.[0]?.message?.content?.trim() || ''
     raw = raw.replace(/^```json\s*|\s*```$/g, '')
     const req = extractJSON(raw) as any || { action: 'final', parameters: { reply: raw || '...' } }
 
-    // if model already provides final, stop
     if (req.action === 'final') {
-      finalReply = String(req.parameters?.reply || '...')
+      let candidate = String(req.parameters?.reply || '...')
+      const same = candidate.slice(0, 180) === lastReply.slice(0, 180)
+      if (same) {
+        history.push({ role: 'system', content: 'La bozza è ripetitiva. Avanza di fase, aggiungi un fatto nuovo e riformula opzioni diverse. Produci di nuovo final.' })
+        continue
+      }
+      lastReply = candidate
+      finalReply = candidate
       break
     }
 
-    // Execute tool and append observation
     const result = await execTool(req)
-    // Push what the assistant "requested"
     history.push({ role: 'assistant', content: JSON.stringify(req) })
-    // Provide the result back as observation and instruct to continue or finalize
-    const guide = (result as any)?.type === 'world' || (result as any)?.type === 'events' ?
-      'Usa queste informazioni per proseguire verso una risposta finale.' :
-      'Ora, se sufficiente, produci azione finale con narrativa.'
-
     history.push({
       role: 'system',
-      content: `Osservazione: ${JSON.stringify(result).slice(0, 6000)}\n${guide}`
+      content: `Osservazione: ${JSON.stringify(result).slice(0, 6000)}\nUsa queste informazioni per proseguire e, se sufficiente, chiudere con azione "final".`
     })
   }
 
   if (!finalReply) {
-    // ask the model to finalize no matter what
     const fin = await openai.chat.completions.create({
       model: MODEL,
       temperature: 0.7,
-      messages: [...history, { role: 'system', content: 'Produci azione finale ora.' }]
+      presence_penalty: 0.7,
+      frequency_penalty: 0.6,
+      messages: [...history, { role: 'system', content: 'Produci azione finale ora, con 2–4 opzioni nuove.' }]
     })
     let raw = fin.choices?.[0]?.message?.content?.trim() || '...'
     raw = raw.replace(/^```json\s*|\s*```$/g, '')
@@ -90,11 +97,5 @@ REGOLE DI PROGRESSIONE:
 
   const safe = basicLinguisticsEffect(finalReply || '...', char.languages.map(l => l.languageCode))
   await prisma.event.create({ data: { kind: 'scene', summary: `Interazione: ${char.name}`, payload: { text, reply: safe } } })
-
-  // opzionale: debug interno (non mostrare JSON all'utente)
-  if (process.env.GM_DEBUG === '1') {
-    await prisma.event.create({ data: { kind: 'gm_debug', summary: 'planner trace', payload: { historyLen: history.length } } })
-  }
-
   return { reply: safe }
 }

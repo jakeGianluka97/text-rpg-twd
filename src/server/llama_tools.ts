@@ -8,10 +8,9 @@ export type ToolAction =
   | { action: 'rag_search', parameters: { q: string, limit?: number } }
   | { action: 'pathfind', parameters: { fromId: string, toId: string } }
   | { action: 'world_context', parameters: { } }
-  | { action: 'get_scene_state', parameters: { characterId: string } }      // <—
-  | { action: 'set_scene_state', parameters: { characterId: string, state: any } } // <—
+  | { action: 'get_scene_state', parameters: { characterId: string } }
+  | { action: 'set_scene_state', parameters: { characterId: string, state: any } }
   | { action: 'final', parameters: { reply: string } }
-
 
 export type ToolResult =
   | { type: 'events', data: any[] }
@@ -26,13 +25,11 @@ export function extractJSON(text: string): any | null {
   if (!text) return null
   const clean = text.replace(/^```json\s*|\s*```$/g, '').trim()
   try { return JSON.parse(clean) } catch {}
-  // fallback: try to find first {...} block
   const m = clean.match(/\{[\s\S]*\}/)
   if (m) { try { return JSON.parse(m[0]) } catch {} }
   return null
 }
 
-// Execute a single tool request
 export async function execTool(req: ToolAction): Promise<ToolResult> {
   try {
     if (req.action === 'query_events') {
@@ -59,23 +56,22 @@ export async function execTool(req: ToolAction): Promise<ToolResult> {
       const p = await shortestPath(req.parameters.fromId, req.parameters.toId)
       return { type: 'path', data: p }
     }
-    if (req.action === 'get_scene_state') {
-  const row = await prisma.memoryChunk.findFirst({
-    where: { scope: 'scene', refId: req.parameters.characterId },
-    orderBy: { ts: 'desc' }
-  })
-  return { type: 'world', data: { scene_state: row?.content ?? null } }
-}
-if (req.action === 'set_scene_state') {
-  const rec = await prisma.memoryChunk.create({
-    data: { scope: 'scene', refId: req.parameters.characterId, content: req.parameters.state }
-  })
-  return { type: 'world', data: { ok: true, id: rec.id } }
-}
     if (req.action === 'world_context') {
       const locs = await prisma.location.findMany({ take: 20, orderBy: { updatedAt: 'desc' } })
       const recent = await prisma.event.findMany({ orderBy: { ts: 'desc' }, take: 10 })
       return { type: 'world', data: { locations: locs, events: recent } }
+    }
+    if (req.action === 'get_scene_state') {
+      const row = await prisma.sceneState.findUnique({ where: { characterId: req.parameters.characterId } })
+      return { type: 'world', data: { scene_state: row?.state ?? null } }
+    }
+    if (req.action === 'set_scene_state') {
+      const rec = await prisma.sceneState.upsert({
+        where: { characterId: req.parameters.characterId },
+        update: { state: req.parameters.state, updatedAt: new Date() },
+        create: { characterId: req.parameters.characterId, state: req.parameters.state }
+      })
+      return { type: 'world', data: { ok: true, id: rec.characterId } }
     }
     if (req.action === 'final') {
       return { type: 'final', data: { reply: String((req as any).parameters?.reply || '') } }
@@ -86,7 +82,6 @@ if (req.action === 'set_scene_state') {
   }
 }
 
-// Build the tool catalog text for the prompt
 export const TOOL_CATALOG = `
 Puoi scegliere esattamente una tra queste AZIONI (action) per volta e rispondere SEMPRE in JSON valido:
 - { "action": "world_context", "parameters": {} }  -> ti restituisce luoghi e ultimi eventi
@@ -100,6 +95,6 @@ Puoi scegliere esattamente una tra queste AZIONI (action) per volta e rispondere
 
 Regole:
 - Scegli una sola action per volta.
-- Quando hai abbastanza informazioni, usa "final" con il testo scenico.
-- Mantieni coerenza spazio/tempo con i dati ricevuti dalle azioni precedenti.
+- Quando hai abbastanza informazioni, usa "final" con il testo scenico e opzioni nuove.
+- Mantieni coerenza spazio/tempo con i dati ricevuti.
 `

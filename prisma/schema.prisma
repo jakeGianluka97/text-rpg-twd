@@ -29,6 +29,7 @@ model Character {
   createdAt     DateTime @default(now())
   player        Player   @relation(fields: [playerId], references: [id])
   languages     CharacterLanguage[]
+  SceneState    SceneState?   @relation(fields: [id], references: [characterId])
 }
 
 model Language {
@@ -60,6 +61,7 @@ model Location {
   dangerLevel Int      @default(0)
   lastState   Json
   updatedAt   DateTime @updatedAt
+  Events      Event[]
 }
 
 model Event {
@@ -70,6 +72,8 @@ model Event {
   ts          DateTime @default(now())
   locationId  String?
   gmAsserted  Boolean  @default(true)
+  phase       String?  // opzionale: fase narrativa (intro/parley/...)
+  impact      String?  // opzionale: "info"|"relationship"|"world"
 }
 
 model Message {
@@ -84,9 +88,9 @@ model Message {
 
 model MemoryChunk {
   id       String   @id @default(cuid())
-  scope    String   // 'world'|'location'|'character'|'npc'
+  scope    String   // 'world'|'location'|'character'|'npc'|'scene'
   refId    String?
-  content  String
+  content  Json
   ts       DateTime @default(now())
 }
 
@@ -133,4 +137,11 @@ model Waypoint {
   toId      String
   travelMin Int
   risk      Int
+}
+
+model SceneState {
+  characterId String   @id
+  state       Json
+  updatedAt   DateTime @updatedAt
+  character   Character @relation(fields: [characterId], references: [id])
 }
