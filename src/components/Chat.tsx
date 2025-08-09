@@ -15,26 +15,20 @@ const LS_KEY = (id: string | null) => (id ? `twd-chat-${id}` : 'twd-chat')
 export default function Chat({
   characterId,
   onLocationChange,
-  showTrace = false,
 }: {
   characterId: string | null
   onLocationChange?: (loc: GMResult['location']) => void
-  showTrace?: boolean
 }) {
   const [messages, setMessages] = useState<Msg[]>([])
-  const [trace, setTrace] = useState<NonNullable<GMResult['trace']>>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // reload chat history per character
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY(characterId))
-      if (raw) setMessages(JSON.parse(raw))
-      else setMessages([])
+      setMessages(raw ? JSON.parse(raw) : [])
     } catch {}
   }, [characterId])
 
-  // persist chat
   useEffect(() => {
     try { localStorage.setItem(LS_KEY(characterId), JSON.stringify(messages)) } catch {}
   }, [messages, characterId])
@@ -61,17 +55,10 @@ export default function Chat({
       payload = { reply: `GM error ${res.status}: ${(await res.text()).slice(0, 200)}` }
     }
 
-    const reply = payload?.reply ?? 'Errore: nessuna risposta dal GM.'
-    const options = payload?.options ?? []
-    setMessages((m) => [...m, { sender: 'gm', text: reply, options }])
+    setMessages((m) => [...m, { sender: 'gm', text: payload?.reply ?? 'Errore' , options: payload?.options ?? [] }])
 
-    // aggiorna timeline
-    mutate(`/api/events?characterId=${characterId}`)
-
-    // update location (mappa)
-    onLocationChange?.(payload?.location ?? null)
-
-    setTrace(payload?.trace ?? [])
+    mutate(`/api/events?characterId=${characterId}`)     // aggiorna timeline
+    onLocationChange?.(payload?.location ?? null)        // aggiorna mappa
   }
 
   return (
@@ -84,11 +71,7 @@ export default function Chat({
             {!!m.options?.length && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {m.options.map((opt, idx) => (
-                  <button
-                    key={idx}
-                    className="px-3 py-1 rounded-full bg-zinc-800 hover:bg-zinc-700 text-sm"
-                    onClick={() => send(opt)}
-                  >
+                  <button key={idx} className="px-3 py-1 rounded-full bg-zinc-800 hover:bg-zinc-700 text-sm" onClick={() => send(opt)}>
                     {opt}
                   </button>
                 ))}
@@ -96,17 +79,6 @@ export default function Chat({
             )}
           </div>
         ))}
-
-        {showTrace && trace.length > 0 && (
-          <details className="text-xs text-zinc-400">
-            <summary className="cursor-pointer">Log del GM</summary>
-            <ul className="pl-4 list-disc">
-              {trace.map((s, i) => (
-                <li key={i}>{s.action}{s.note ? ` → ${s.note}` : ''}</li>
-              ))}
-            </ul>
-          </details>
-        )}
       </div>
 
       <div className="p-2 flex gap-2 border-t border-zinc-800">

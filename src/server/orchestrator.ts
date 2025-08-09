@@ -7,167 +7,93 @@ import type { Prisma } from '@prisma/client'
 const SYSTEM = SYSTEM_PROMPT
 const MAX_STEPS = 6
 
-type StepTrace = { action: string; note?: string }
-type SceneStateDoc = {
-  phase?: string
-  location?: { lat: number; lon: number; name?: string } | null
-  [k: string]: unknown
+type SceneStateDoc = { phase?: string; location?: { lat:number; lon:number; name?:string } | null; [k:string]:unknown }
+function asScene(v: Prisma.JsonValue | null | undefined): SceneStateDoc | null {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as SceneStateDoc) : null
 }
-
-function asSceneStateDoc(v: Prisma.JsonValue | null | undefined): SceneStateDoc | null {
-  if (v && typeof v === 'object' && !Array.isArray(v)) return v as SceneStateDoc
-  return null
-}
-
 const CANON = /\b(rick|grimes|daryl|dix(on)?|michonne|negan|carol|glenn|maggie|shane|lori)\b/i
-function violatesCanon(s: string) { return CANON.test(s) }
-
-// rozzo ma efficace per beccare inglese: molte parole con 'the/and/is/are' e niente accenti
-const EN_HINT = /\b(the|and|is|are|you|your|they|their|we|our)\b/i
-function looksEnglish(s: string) { return EN_HINT.test(s) }
+const EN = /\b(the|and|is|are|you|your|they|their|we|our)\b/i
+const looksEnglish = (s:string)=>EN.test(s)
+const violatesCanon = (s:string)=>CANON.test(s)
 
 function basicLinguisticsEffect(text: string, knownCodes: string[]) {
-  if (!knownCodes.includes('nap') && /napoletano|nap\b/i.test(text)) {
-    return 'Capisci a metà: ' + text.replace(/[aeiou]/gi, '')
-  }
+  if (!knownCodes.includes('nap') && /napoletano|nap\b/i.test(text)) return 'Capisci a metà: ' + text.replace(/[aeiou]/gi, '')
   return text
 }
-function stripFenceJson(s: string) { return s.replace(/^```json\s*|\s*```$/g, '').trim() }
-function extractOptions(txt: string): string[] {
-  const out: string[] = []
-  const re = /^-\s+(.+)$/gm
-  let m
-  while ((m = re.exec(txt)) !== null) out.push(m[1].trim())
-  return out.slice(0, 6)
-}
+const strip = (s:string)=>s.replace(/^```json\s*|\s*```$/g,'').trim()
+const opts = (t:string)=>{ const a=[] as string[]; const r=/^-\s+(.+)$/gm; let m; while((m=r.exec(t))!==null)a.push(m[1].trim()); return a.slice(0,6) }
 
-export async function handlePlayerMessage({
-  characterId, text,
-}: { characterId: string; text: string }) {
-
-  const char = await prisma.character.findUnique({
-    where: { id: characterId },
-    include: { languages: { include: { language: true } } },
-  })
+export async function handlePlayerMessage({ characterId, text }: { characterId: string; text: string }) {
+  const char = await prisma.character.findUnique({ where: { id: characterId }, include: { languages: { include: { language: true } } } })
   if (!char) return { reply: 'Personaggio non trovato.', options: [], trace: [], location: null }
 
   const openai = getOpenAI()
-
-  // === STUB senza LLM ===
   if (!openai) {
     const reply = `Hai detto: "${text}". Una voce in dialetto napoletano risponde da lontano.
 - Chiedere di trattare
 - Cercare un interprete
 - Offrire qualcosa in cambio
 - Andartene in silenzio`
-    await prisma.event.create({
-      data: { kind: 'scene', summary: `Interazione: ${char.name} (stub)`, payload: { text }, characterId: char.id },
-    })
-    const safe = basicLinguisticsEffect(reply, char.languages.map(l => l.languageCode))
-    const options = extractOptions(safe)
+    await prisma.event.create({ data: { kind: 'scene', summary: `Interazione: ${char.name} (stub)`, payload: { text }, characterId: char.id } })
+    const safe = basicLinguisticsEffect(reply, char.languages.map(l=>l.languageCode))
     const row = await prisma.sceneState.findUnique({ where: { characterId: char.id } })
-    const doc = asSceneStateDoc(row?.state)
-    const location = doc?.location ?? null
-    return { reply: safe, options, trace: [], location }
+    const doc = asScene(row?.state)
+    return { reply: safe, options: opts(safe), trace: [], location: doc?.location ?? null }
   }
 
-  const sysToolPrompt = `Sei un Game Master AI per The Walking Dead (solo universo, niente personaggi canon).
-Regole assolute:
-- Rispondi SEMPRE in italiano chiaro.
-- PNG e gruppi DEVONO essere originali (vietati nomi canon: Rick, Daryl, Michonne, Negan, ecc.).
+  const sysTool = `Sei un Game Master AI per The Walking Dead (solo universo, niente personaggi canon).
+- Rispondi SEMPRE in italiano.
+- PNG e gruppi DEVONO essere originali (vietati nomi canon).
 - Usa AZIONI (tipo tools) definite qui sotto. ${TOOL_CATALOG}
 - Ogni turno aggiungi almeno un fatto nuovo e proponi 2–4 opzioni in elenco "- ...".
-- Usa get_scene_state/set_scene_state per avanzare la fase (intro -> parley -> road -> camp ecc.).
-- Produce una sola azione per volta e chiudi con {"action":"final","parameters":{"reply":"..."}}.`
+- Usa get_scene_state/set_scene_state per avanzare fase. Produci UNA azione per volta e chiudi con {"action":"final","parameters":{"reply":"..."}}.`
 
-  const history: any[] = [
-    { role: 'system', content: SYSTEM },
-    { role: 'system', content: sysToolPrompt },
-    { role: 'system', content: 'Lingua obbligatoria: ITALIANO. Personaggi canon VIETATI.' },
-    { role: 'user', content: `PG: ${char.name} — input: ${text}` },
-    { role: 'system', content: `Suggerimento: prima "get_scene_state" characterId="${char.id}", poi "world_context".` },
+  const history:any[] = [
+    { role:'system', content: SYSTEM },
+    { role:'system', content: sysTool },
+    { role:'system', content: 'Lingua obbligatoria: ITALIANO. Personaggi canon VIETATI.' },
+    { role:'user', content: `PG: ${char.name} — input: ${text}` },
+    { role:'system', content: `Suggerimento: prima "get_scene_state" characterId="${char.id}", poi "world_context".` },
   ]
 
-  const trace: StepTrace[] = []
-  let finalReply: string | null = null
-  let lastReply = ''
-
-  for (let step = 0; step < MAX_STEPS; step++) {
-    const res = await openai.chat.completions.create({
-      model: MODEL,
-      messages: history,
-      temperature: step === 0 ? 0.4 : 0.6,
-      presence_penalty: 0.6,
-      frequency_penalty: 0.5,
-    })
-
-    let raw = stripFenceJson(res.choices?.[0]?.message?.content || '')
-    const req = (extractJSON(raw) as any) || { action: 'final', parameters: { reply: raw || '...' } }
-
-    if (req.action === 'final') {
-      const candidate = String(req.parameters?.reply || '...')
-      const same = candidate.slice(0, 180) === lastReply.slice(0, 180)
-      if (same) {
-        history.push({ role: 'system', content: 'La bozza è ripetitiva. Avanza la storia, opzioni diverse. Ripeti final.' })
-        continue
-      }
-      lastReply = candidate
-      finalReply = candidate
-      break
-    }
-
-    const result = await execTool(req)
-    trace.push({ action: req.action, note: (result as any)?.type })
-    history.push({ role: 'assistant', content: JSON.stringify(req) })
-    history.push({
-      role: 'system',
-      content: `Osservazione: ${JSON.stringify(result).slice(0, 6000)}\nProsegui e chiudi con "final" quando pronto.`,
-    })
+  let finalReply:string|null=null
+  for (let i=0;i<MAX_STEPS;i++){
+    const res = await openai.chat.completions.create({ model: MODEL, messages: history, temperature: i===0?0.4:0.6, presence_penalty:0.6, frequency_penalty:0.5 })
+    let raw = strip(res.choices?.[0]?.message?.content||'')
+    const req = (extractJSON(raw) as any) || { action:'final', parameters:{ reply:raw || '...' } }
+    if (req.action==='final'){ finalReply=String(req.parameters?.reply || '...'); break }
+    const out = await execTool(req)
+    history.push({ role:'assistant', content: JSON.stringify(req) })
+    history.push({ role:'system', content: `Osservazione: ${JSON.stringify(out).slice(0,6000)}\nProsegui e chiudi con "final" quando pronto.` })
   }
-
-  if (!finalReply) {
-    const fin = await openai.chat.completions.create({
-      model: MODEL,
-      temperature: 0.7,
-      presence_penalty: 0.7,
-      frequency_penalty: 0.6,
-      messages: [...history, { role: 'system', content: 'Chiudi con azione "final" ora, 2–4 opzioni nuove.' }],
-    })
-    let raw = stripFenceJson(fin.choices?.[0]?.message?.content || '...')
+  if(!finalReply){
+    const fin = await openai.chat.completions.create({ model: MODEL, temperature:0.7, messages:[...history, { role:'system', content:'Chiudi con azione "final" (2–4 opzioni).' }] })
+    const raw = strip(fin.choices?.[0]?.message?.content||'...')
     try { finalReply = JSON.parse(raw)?.reply ?? raw } catch { finalReply = raw }
   }
 
-  // Post-processing: mai canon, sempre italiano
-  let safe = basicLinguisticsEffect(finalReply || '...', char.languages.map(l => l.languageCode))
-  if (violatesCanon(safe) || looksEnglish(safe)) {
+  let safe = basicLinguisticsEffect(finalReply||'...', char.languages.map(l=>l.languageCode))
+  if (violatesCanon(safe) || looksEnglish(safe)){
     const regen = await openai.chat.completions.create({
-      model: MODEL,
-      temperature: 0.6,
-      messages: [
-        ...history,
-        { role: 'system', content: 'Riformula la risposta in ITALIANO con PNG originali (vietati nomi canon).' },
-        { role: 'assistant', content: JSON.stringify({ action: 'final', parameters: { reply: safe } }) },
-      ],
+      model: MODEL, temperature:0.6,
+      messages:[...history, { role:'system', content:'Riformula la risposta in ITALIANO con PNG originali (vietati nomi canon).' }, { role:'assistant', content: JSON.stringify({ action:'final', parameters:{ reply:safe }}) }]
     })
-    const rr = stripFenceJson(regen.choices?.[0]?.message?.content || '')
+    const rr = strip(regen.choices?.[0]?.message?.content||'')
     try { safe = JSON.parse(rr)?.reply ?? rr } catch { safe = rr }
   }
 
-  // Event legato al PG
-  await prisma.event.create({
-    data: {
-      kind: 'scene',
-      summary: `Interazione: ${char.name}`,
-      payload: { text, reply: safe },
-      characterId: char.id,
-    },
-  })
+  await prisma.event.create({ data: { kind:'scene', summary:`Interazione: ${char.name}`, payload:{ text, reply:safe }, characterId: char.id } })
 
-  // Posizione corrente
+  // Location dal SceneState + fallback Napoli
   const row = await prisma.sceneState.findUnique({ where: { characterId: char.id } })
-  const doc = asSceneStateDoc(row?.state)
-  const location = doc?.location ?? null
+  let doc = asScene(row?.state) ?? { phase:'intro', location:null }
+  let location = doc.location ?? null
+  const has = location && typeof location.lat==='number' && typeof location.lon==='number'
+  if (!has){
+    location = { lat: 40.8518, lon: 14.2681, name: 'Napoli — Centro' }
+    doc = { ...doc, location }
+    await prisma.sceneState.upsert({ where: { characterId: char.id }, update: { state: doc as any }, create: { characterId: char.id, state: doc as any } })
+  }
 
-  const options = extractOptions(safe)
-  return { reply: safe, options, trace, location }
+  return { reply: safe, options: opts(safe), trace: [], location }
 }
