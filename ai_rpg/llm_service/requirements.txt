@@ -1,5 +1,0 @@
-flask==2.3.3
-langchain>=0.1.0     # Framework per catene e memoria LLM
-openai>=1.0.0        # Client ufficiale OpenAI
-tiktoken>=0.5.0      # Tokenizer per conteggio token
-python-dotenv>=1.0.0 # Gestione variabili d'ambiente
