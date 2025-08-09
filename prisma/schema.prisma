@@ -8,37 +8,39 @@ datasource db {
 }
 
 model Player {
-  id         String   @id @default(cuid())
-  email      String   @unique
+  id         String      @id @default(cuid())
+  email      String      @unique
   name       String
-  locale     String   @default("it-IT")
-  createdAt  DateTime @default(now())
+  locale     String      @default("it-IT")
+  createdAt  DateTime    @default(now())
   characters Character[]
 }
 
 model Character {
-  id            String   @id @default(cuid())
-  playerId      String
-  name          String
-  concept       String
-  backstory     String
-  originLocale  String
-  traits        Json
-  stats         Json
-  proficiency   Json
-  createdAt     DateTime @default(now())
-  player        Player   @relation(fields: [playerId], references: [id])
-  languages     CharacterLanguage[]
-  SceneState    SceneState?   @relation(fields: [id], references: [characterId])
+  id           String              @id @default(cuid())
+  playerId     String
+  name         String
+  concept      String
+  backstory    String
+  originLocale String
+  traits       Json
+  stats        Json
+  proficiency  Json
+  createdAt    DateTime            @default(now())
+  player       Player              @relation(fields: [playerId], references: [id])
+  languages    CharacterLanguage[]
+
+  // PRIMA aveva @relation(fields:[id], references:[characterId]) — va tolto
+  sceneState SceneState?
 }
 
 model Language {
-  code   String @id
-  name   String
-  type   String // language | dialect
-  region String?
+  code       String              @id
+  name       String
+  type       String // language | dialect
+  region     String?
   characters CharacterLanguage[]
-  npcs NPCLanguage[]
+  npcs       NPCLanguage[]
 }
 
 model CharacterLanguage {
@@ -47,6 +49,7 @@ model CharacterLanguage {
   level        Int
   character    Character @relation(fields: [characterId], references: [id])
   language     Language  @relation(fields: [languageCode], references: [code])
+
   @@id([characterId, languageCode])
 }
 
@@ -61,25 +64,31 @@ model Location {
   dangerLevel Int      @default(0)
   lastState   Json
   updatedAt   DateTime @updatedAt
-  Events      Event[]
+
+  // PRIMA era "Events Event[]" senza lato opposto
+  events Event[] // <-- minuscolo per convenzione
 }
 
 model Event {
-  id          String   @id @default(cuid())
-  kind        String
-  summary     String
-  payload     Json
-  ts          DateTime @default(now())
-  locationId  String?
-  gmAsserted  Boolean  @default(true)
-  phase       String?  // opzionale: fase narrativa (intro/parley/...)
-  impact      String?  // opzionale: "info"|"relationship"|"world"
+  id      String   @id @default(cuid())
+  kind    String
+  summary String
+  payload Json
+  ts      DateTime @default(now())
+
+  // Relazione corretta verso Location
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id])
+
+  gmAsserted Boolean @default(true)
+  phase      String?
+  impact     String?
 }
 
 model Message {
   id             String   @id @default(cuid())
   conversationId String
-  sender         String   // 'player' | 'gm'
+  sender         String // 'player' | 'gm'
   text           String
   locale         String
   toolCalls      Json
@@ -87,16 +96,16 @@ model Message {
 }
 
 model MemoryChunk {
-  id       String   @id @default(cuid())
-  scope    String   // 'world'|'location'|'character'|'npc'|'scene'
-  refId    String?
-  content  Json
-  ts       DateTime @default(now())
+  id      String   @id @default(cuid())
+  scope   String // 'world'|'location'|'character'|'npc'|'scene'
+  refId   String?
+  content Json
+  ts      DateTime @default(now())
 }
 
 model Relationship {
   id          String   @id @default(cuid())
-  subjectType String   // 'npc'|'character'
+  subjectType String // 'npc'|'character'
   subjectId   String
   objectType  String
   objectId    String
@@ -108,12 +117,12 @@ model Relationship {
 }
 
 model NPC {
-  id        String   @id @default(cuid())
-  name      String
-  profile   Json
-  alive     Boolean  @default(true)
+  id         String        @id @default(cuid())
+  name       String
+  profile    Json
+  alive      Boolean       @default(true)
   lastSeenAt DateTime?
-  languages NPCLanguage[]
+  languages  NPCLanguage[]
 }
 
 model NPCLanguage {
@@ -122,13 +131,14 @@ model NPCLanguage {
   level        Int
   npc          NPC      @relation(fields: [npcId], references: [id])
   language     Language @relation(fields: [languageCode], references: [code])
+
   @@id([npcId, languageCode])
 }
 
 model Faction {
-  id     String @id @default(cuid())
-  name   String @unique
-  rules  Json
+  id    String @id @default(cuid())
+  name  String @unique
+  rules Json
 }
 
 model Waypoint {
@@ -143,5 +153,7 @@ model SceneState {
   characterId String   @id
   state       Json
   updatedAt   DateTime @updatedAt
-  character   Character @relation(fields: [characterId], references: [id])
+
+  // La relazione con "fields/references" va messa QUI (lato SceneState)
+  character Character @relation(fields: [characterId], references: [id])
 }

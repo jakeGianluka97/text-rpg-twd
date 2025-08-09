@@ -6,11 +6,22 @@ export default function CharacterForm({ onReady }: { onReady: (id: string)=>void
   const [motherTongue, setMotherTongue] = useState('it')
   const [known, setKnown] = useState<string>('nap')
   const create = async () => {
-    const res = await fetch('/api/characters', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, motherTongue, known: [known] })
-    })
-    const data = await res.json(); onReady(data.id)
+    const res = await fetch('/api/character/upsert', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name, motherTongue, known: [known] })
+})
+
+let data: any = null
+if (res.ok) {
+  try { data = await res.json() } 
+  catch { const t = await res.text(); throw new Error(`Parse error: ${t.slice(0,200)}`) }
+} else {
+  const t = await res.text()
+  throw new Error(`API ${res.status}: ${t.slice(0,200)}`)
+}
+
+onReady?.(data.id)
   }
   return (
     <div className="space-y-3">
