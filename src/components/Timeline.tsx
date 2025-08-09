@@ -1,15 +1,18 @@
 'use client'
-import { useEffect, useState } from 'react'
-type Ev = { id:string; kind:string; summary:string; ts:string }
-export default function Timeline() {
-  const [evs, setEvs] = useState<Ev[]>([])
-  useEffect(()=>{ fetch('/api/events').then(r=>r.json()).then(d=>setEvs(d.events)) },[])
+import useSWR from 'swr'
+const f = (u:string)=>fetch(u).then(r=>r.json())
+
+export default function Timeline({ characterId }: { characterId: string | null }) {
+  const key = characterId ? `/api/events?characterId=${characterId}` : null
+  const { data } = useSWR(key, f, { revalidateOnFocus: false })
+  const events = data?.events ?? []
   return (
-    <div className="space-y-2 max-h-[45vh] overflow-auto border border-zinc-800 rounded p-2">
-      {evs.map(e => (
-        <div key={e.id} className="text-sm">
-          <span className="opacity-60 mr-2">{new Date(e.ts).toLocaleString()}</span>
-          <b className="mr-2">[{e.kind}]</b>{e.summary}
+    <div className="space-y-2 text-sm">
+      {events.map((e:any)=>(
+        <div key={e.id} className="flex gap-2">
+          <span className="text-zinc-400 w-[160px]">{new Date(e.ts).toLocaleString()}</span>
+          <span className="font-medium">[{e.kind}]</span>
+          <span className="truncate">{e.summary}</span>
         </div>
       ))}
     </div>

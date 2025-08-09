@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { mutate } from 'swr'
 
 type Msg = { sender: 'player' | 'gm'; text: string; options?: string[] }
@@ -22,6 +22,20 @@ export default function Chat({
   const [messages, setMessages] = useState<Msg[]>([])
   const [trace, setTrace] = useState<NonNullable<GMResult['trace']>>([])
   const inputRef = useRef<HTMLInputElement>(null)
+  const LS_KEY = (id: string | null) => (id ? `twd-chat-${id}` : 'twd-chat')
+
+useEffect(() => {
+  // load
+  try {
+    const raw = localStorage.getItem(LS_KEY(characterId))
+    if (raw) setMessages(JSON.parse(raw))
+  } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [characterId])
+
+useEffect(() => {
+  try { localStorage.setItem(LS_KEY(characterId), JSON.stringify(messages)) } catch {}
+}, [messages, characterId])
 
   async function send(textFromButton?: string) {
     if (!characterId) return alert('Crea/seleziona un personaggio prima.')
