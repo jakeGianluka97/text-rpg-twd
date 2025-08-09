@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     where: characterId ? { characterId } : {},
     orderBy: { ts: 'desc' },
     take: 50,
-    select: { id: true, ts: true, kind: true, summary: true }
+    select: { id: true, ts: true, kind: true, summary: true },
   })
 
   return NextResponse.json({ events })

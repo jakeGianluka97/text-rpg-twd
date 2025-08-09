@@ -14,12 +14,20 @@ export default function CharacterForm({ onReady }: { onReady: (id: string)=>void
 
 let data: any = null
 if (res.ok) {
-  try { data = await res.json() }
-  catch { const t = await res.text(); throw new Error(`Parse error: ${t.slice(0,200)}`) }
+  try { 
+    data = await res.json() 
+  }
+  catch { 
+    const t = await res.text(); 
+    throw new Error(`Parse error: ${t.slice(0,200)}`) 
+  }
 } else {
   const t = await res.text()
   throw new Error(`API ${res.status}: ${t.slice(0,200)}`)
 }
+
+// ⬇️ AGGIUNTA QUI
+localStorage.setItem('twd:lastCharacterId', data.id)
 onReady?.(data.id)
 
   }
